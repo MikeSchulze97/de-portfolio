@@ -26,3 +26,6 @@ data/_tmp/
 
 # Docker
 **/.docker/
+
+# Runtime data (services-local)
+services/data/
