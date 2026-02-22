@@ -1,0 +1,52 @@
+services:
+  ingestion:
+    build: ./services/ingestion
+    ports:
+      - "8000:8000"
+    environment:
+      DATA_DIR: /data
+    volumes:
+      - ./data:/data
+
+  processing:
+    build: ./services/processing
+    environment:
+      DATA_DIR: /data
+    volumes:
+      - ./data:/data
+    profiles: ["batch"]
+
+  aggregation:
+    build: ./services/processing
+    environment:
+      DATA_DIR: /data
+    volumes:
+      - ./data:/data
+    profiles: ["batch"]
+
+  event-generator:
+    build: ./services/event-generator
+    environment:
+      INGEST_URL: http://ingestion:8000/ingest
+      CSV_PATH: /data/input/data.csv
+      DELAY_SECONDS: "1"
+    volumes:
+      - ./data:/data
+    depends_on:
+      - ingestion
+    profiles: ["generator"]
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: analytics
+      POSTGRES_USER: analytics
+      POSTGRES_PASSWORD: analytics
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    profiles: ["analytics"]
+
+volumes:
+  pgdata:
