@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+.env
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Project data artifacts (do not commit generated pipeline outputs)
+data/raw/
+data/processed/
+data/aggregated/
+data/quarantine/
+data/_checkpoints/
+data/_spark_checkpoints/
+data/_tmp/
+*.log
+
+# Docker
+**/.docker/
