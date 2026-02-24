@@ -2,23 +2,21 @@
 
 This project was created as part of the **Data Engineering portfolio assessment** at IU.
 
-The goal of the project is to demonstrate a **batch-based data pipeline**, covering the full process from data ingestion to aggregation.
+It demonstrates a **batch-based data pipeline**, covering the full flow from data ingestion to batch processing and aggregation.
 
-The focus is on **conceptual clarity, traceability and reproducibility**, not on performance, scalability or production-level complexity.
+The project focuses on deterministic data processing, clear data flow, and reproducible execution using Docker and Apache Spark.
 
 ---
 
 ## Project Overview
 
-The project implements a batch-oriented data pipeline that:
+The pipeline implements a batch-oriented architecture that:
 
-- receives events via an API  
-- stores raw data unchanged  
-- processes events in batches  
+- receives events via an HTTP API  
+- stores raw events unchanged  
+- processes events in batch jobs  
 - aggregates results per time window  
-- can be re-run deterministically  
-
-All steps are designed to be **easy to follow and inspect**, which is especially important in an academic context.
+- can be executed repeatedly with consistent results  
 
 ---
 
@@ -27,22 +25,22 @@ All steps are designed to be **easy to follow and inspect**, which is especially
 The pipeline consists of the following components:
 
 ### Ingestion Service
-- A small FastAPI service that receives events via HTTP  
+- A FastAPI service that receives events via HTTP  
 - Each incoming event is stored as a raw JSON file  
-- No validation or transformation happens at this stage  
+- No transformation is applied at ingestion time  
 
 ### Batch Processing (Spark)
 - Reads raw event files  
 - Extracts event time from filenames  
-- Structures and validates the data  
+- Validates and structures the data  
 - Writes processed events into time-based partitions  
 
 ### Aggregation (Spark)
 - Reads processed data per partition  
 - Aggregates events by event type  
-- Writes the final results as JSON files  
+- Writes aggregated results as JSON files  
 
-All components are executed using **Docker and Docker Compose** to ensure consistent and reproducible execution.
+All components are executed using **Docker and Docker Compose**.
 
 ---
 
@@ -50,7 +48,7 @@ All components are executed using **Docker and Docker Compose** to ensure consis
 
 The data flows through the system as follows:
 
-Event Generator  
+Event Generator (optional)  
 → Ingestion Service (FastAPI)  
 → Raw data storage  
 → Batch Processing (Spark)  
@@ -58,7 +56,7 @@ Event Generator
 → Aggregation (Spark)  
 → Aggregated result files  
 
-All data is stored locally on the filesystem to make every step transparent and easy to inspect.
+All data is stored locally on the filesystem to allow full inspection of each processing stage.
 
 ---
 
@@ -67,30 +65,27 @@ All data is stored locally on the filesystem to make every step transparent and 
 ### Raw Data
 - Each event is stored as a single JSON file  
 - Event time is encoded in the filename  
-- Raw files are never modified after ingestion  
+- Raw data is never modified after ingestion  
 
 ### Processed Data
-- Valid events are written to partitioned folders:
+- Valid events are written to partitioned directories:
   - `date=YYYY-MM-DD/hour=HH`
 - Partitioning is based on event time  
-- Invalid or incomplete events are excluded from further processing  
 
 ### Aggregated Data
-- For each partition, events are counted by event type  
+- Events are counted per partition and event type  
 - Results are written to `event_counts.json`  
 
 ---
 
 ## Checkpoints and Reproducibility
 
-The pipeline uses simple checkpoint files to track progress.
+The pipeline uses checkpoint files to track processing state.
 
 This ensures that:
 - already processed data is not duplicated  
-- batch jobs can be safely re-run  
-- the pipeline can be stopped and restarted without manual cleanup  
-
-The behaviour remains consistent across multiple executions.
+- batch jobs can be re-run safely  
+- execution remains deterministic across runs  
 
 ---
 
@@ -99,14 +94,14 @@ The behaviour remains consistent across multiple executions.
 data/
 ├── raw/
 ├── processed/
-│ └── date=YYYY-MM-DD/
-│ └── hour=HH/
+│   └── date=YYYY-MM-DD/
+│       └── hour=HH/
 ├── aggregated/
-│ └── date=YYYY-MM-DD/
-│ └── hour=HH/
+│   └── date=YYYY-MM-DD/
+│       └── hour=HH/
 └── _checkpoints/
 
-Generated data folders are excluded from version control.
+Generated data directories are excluded from version control.
 
 ---
 
@@ -117,8 +112,8 @@ All commands are executed via a PowerShell helper script.
 Start the ingestion service:
 .\tasks_docker.ps1 up
 
-Access API documentation:
-http://localhost:8000/docs
+(Optional) Run the event generator (requires a CSV file):
+.\tasks_docker.ps1 generator
 
 Run the complete pipeline (Spark):
 .\tasks_docker.ps1 run
@@ -126,15 +121,16 @@ Run the complete pipeline (Spark):
 Stop all services:
 .\tasks_docker.ps1 down
 
+Access API documentation:
+http://localhost:8000/docs
+
 ---
 
 ## Scope and Limitations
 
-This project intentionally focuses on **core batch processing concepts** and therefore excludes:
+The project focuses on batch data processing and does not include:
 
 - streaming platforms  
 - cloud storage  
 - workflow schedulers  
 - analytics or visualization layers  
-
-The reduced scope allows a clear and focused demonstration of fundamental batch data engineering principles.
