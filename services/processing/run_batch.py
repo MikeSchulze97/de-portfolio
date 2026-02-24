@@ -38,7 +38,6 @@ def append_checkpoint(filenames: list[str]) -> None:
 
 
 def parse_event_time_from_filename(filename: str) -> datetime:
-    # Example: 20260208T103215759657_ecommerce_transaction.json
     ts = filename.split("_")[0]
     return datetime.strptime(ts, "%Y%m%dT%H%M%S%f")
 
@@ -85,7 +84,6 @@ def run_batch(limit: int | None = None) -> None:
 
     for f in to_process:
         try:
-            # utf-8-sig handles BOM if present
             with f.open("r", encoding="utf-8-sig") as file:
                 event = json.load(file)
 
@@ -109,7 +107,7 @@ def run_batch(limit: int | None = None) -> None:
                     out.write(json.dumps(bad_record, ensure_ascii=False) + "\n")
 
                 quarantined += 1
-                written.append(f.name)  # checkpoint it so it won't block future runs
+                written.append(f.name)
                 continue
 
             event_time = parse_event_time_from_filename(f.name)
@@ -135,7 +133,6 @@ def run_batch(limit: int | None = None) -> None:
             processed_ok += 1
 
         except Exception as e:
-            # If we can't read/parse JSON (or anything unexpected happens), quarantine it too
             try:
                 event_time = parse_event_time_from_filename(f.name)
                 date_part = event_time.strftime("%Y-%m-%d")

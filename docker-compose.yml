@@ -8,22 +8,6 @@ services:
     volumes:
       - ./data:/data
 
-  processing:
-    build: ./services/processing
-    environment:
-      DATA_DIR: /data
-    volumes:
-      - ./data:/data
-    profiles: ["batch"]
-
-  aggregation:
-    build: ./services/processing
-    environment:
-      DATA_DIR: /data
-    volumes:
-      - ./data:/data
-    profiles: ["batch"]
-
   event-generator:
     build: ./services/event-generator
     environment:
@@ -36,6 +20,7 @@ services:
       - ingestion
     profiles: ["generator"]
 
+  # --- Analytics DB (optional serving layer) ---
   postgres:
     image: postgres:16-alpine
     environment:
@@ -47,6 +32,31 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     profiles: ["analytics"]
+
+  # --- Spark path (target implementation) ---
+  spark-processing:
+    build:
+      context: ./services/processing
+      dockerfile: Dockerfile.spark
+    environment:
+      DATA_DIR: /data
+      SPARK_LOCAL_IP: 127.0.0.1
+    volumes:
+      - ./data:/data
+    command: ["python", "run_spark_batch.py"]
+    profiles: ["spark"]
+
+  spark-aggregation:
+    build:
+      context: ./services/processing
+      dockerfile: Dockerfile.spark
+    environment:
+      DATA_DIR: /data
+      SPARK_LOCAL_IP: 127.0.0.1
+    volumes:
+      - ./data:/data
+    command: ["python", "run_spark_aggregate.py"]
+    profiles: ["spark"]
 
 volumes:
   pgdata:

@@ -1,0 +1,10 @@
+FROM bitnami/spark:3.5.1
+
+WORKDIR /app
+
+# Copy spark job scripts
+COPY run_spark_batch.py /app/run_spark_batch.py
+COPY run_spark_aggregate.py /app/run_spark_aggregate.py
+COPY run_aggregate.py /app/run_aggregate.py
+
+# Default command is set via docker-compose (command: ["python", "..."])

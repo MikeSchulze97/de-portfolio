@@ -15,6 +15,7 @@ venv/
 Thumbs.db
 
 # Project data artifacts (do not commit generated pipeline outputs)
+data/
 data/raw/
 data/processed/
 data/aggregated/
@@ -29,3 +30,6 @@ data/_tmp/
 
 # Runtime data (services-local)
 services/data/
+
+# Private documents
+private_docs/

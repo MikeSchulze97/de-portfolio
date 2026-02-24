@@ -41,28 +41,47 @@ def aggregate_one_partition(partition_dir: Path) -> dict:
     hour_part = partition_dir.name.replace("hour=", "")
 
     counts = Counter()
-    fpath = events_file(partition_dir)
 
-    if not fpath.exists():
+    fpath = events_file(partition_dir)
+    if fpath.exists():
+        with fpath.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                event = json.loads(line)
+                counts[event.get("event_type", "unknown")] += 1
+
+        return {
+            "date": date_part,
+            "hour": hour_part,
+            "event_type_counts": dict(counts),
+            "source": "events.jsonl",
+        }
+
+    part_files = sorted(partition_dir.glob("part-*.json"))
+    if not part_files:
         return {
             "date": date_part,
             "hour": hour_part,
             "event_type_counts": {},
-            "note": "events.jsonl not found",
+            "note": "no input files found (events.jsonl missing and no part-*.json)",
         }
 
-    with fpath.open("r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            event = json.loads(line)
-            counts[event.get("event_type", "unknown")] += 1
+    for pf in part_files:
+        with pf.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                event = json.loads(line)
+                counts[event.get("event_type", "unknown")] += 1
 
     return {
         "date": date_part,
         "hour": hour_part,
         "event_type_counts": dict(counts),
+        "source": "spark_part_files",
     }
 
 
@@ -73,92 +92,59 @@ def resolve_partition(partition: str) -> Path:
     return PROCESSED_DIR / partition
 
 
-def list_partitions() -> None:
+def list_partitions() -> list[Path]:
     if not PROCESSED_DIR.exists():
         print(f"[ERROR] processed dir not found: {PROCESSED_DIR}")
-        return
+        return []
 
-    partitions = sorted([p for p in PROCESSED_DIR.glob("date=*/hour=*") if p.is_dir()])
-
-    if not partitions:
-        print("[INFO] No partitions found")
-        return
-
-    print("[INFO] Available partitions:")
-    for p in partitions:
-        print(f"  - {partition_key(p)}")
+    partitions = []
+    for date_dir in sorted(PROCESSED_DIR.glob("date=*")):
+        for hour_dir in sorted(date_dir.glob("hour=*")):
+            partitions.append(hour_dir)
+    return partitions
 
 
-def run_aggregate(force: bool = False, partition: str | None = None) -> None:
-    if not PROCESSED_DIR.exists():
-        print(f"[ERROR] processed dir not found: {PROCESSED_DIR}")
-        return
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Aggregate processed events")
+    parser.add_argument("--partition", type=str, help="Aggregate a single partition (date=YYYY-MM-DD/hour=HH)")
+    parser.add_argument("--force", action="store_true", help="Re-aggregate even if partition is already in state file")
+    args = parser.parse_args()
 
     state = load_state()
 
-    if partition:
-        part_dir = resolve_partition(partition)
-        if not part_dir.exists():
-            print(f"[ERROR] partition not found: {part_dir}")
-            return
-        partitions = [part_dir]
+    if args.partition:
+        partitions = [resolve_partition(args.partition)]
     else:
-        partitions = sorted([p for p in PROCESSED_DIR.glob("date=*/hour=*") if p.is_dir()])
+        partitions = list_partitions()
 
     print(f"[INFO] Found partitions: {len(partitions)}")
 
-    to_process: list[tuple[Path, str, float]] = []
-    for part in partitions:
-        key = partition_key(part)
-        fpath = events_file(part)
-        mtime = fpath.stat().st_mtime if fpath.exists() else 0.0
-        last = state.get(key, -1.0)
+    to_process = []
+    for p in partitions:
+        key = partition_key(p)
+        if args.force or key not in state:
+            to_process.append(p)
 
-        if force or mtime > last:
-            to_process.append((part, key, mtime))
-
-    print(f"[INFO] To aggregate now: {len(to_process)} (force={force})")
+    print(f"[INFO] To aggregate now: {len(to_process)} (force={args.force})")
 
     if not to_process:
         print("[INFO] Nothing to do")
         return
 
-    written = 0
-    for part, key, mtime in to_process:
-        result = aggregate_one_partition(part)
+    for partition_dir in to_process:
+        result = aggregate_one_partition(partition_dir)
 
-        out_dir = AGG_DIR / part.parent.name / part.name
+        out_dir = AGG_DIR / partition_dir.parent.name / partition_dir.name
         out_dir.mkdir(parents=True, exist_ok=True)
 
         out_file = out_dir / "event_counts.json"
-        with out_file.open("w", encoding="utf-8") as f:
-            json.dump(result, f, ensure_ascii=False, indent=2)
+        out_file.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
 
-        state[key] = mtime
-        written += 1
+        state[partition_key(partition_dir)] = out_file.stat().st_mtime
 
     save_state(state)
-    print(f"[OK] Aggregation complete. Written: {written}")
+    print(f"[OK] Aggregation complete. Written: {len(to_process)}")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--force", action="store_true", help="Recompute even if state says up-to-date")
-    parser.add_argument(
-        "--partition",
-        type=str,
-        default=None,
-        help="Aggregate only one partition: date=YYYY-MM-DD/hour=HH",
-    )
-    parser.add_argument(
-        "--list-partitions",
-        action="store_true",
-        help="List available processed partitions and exit",
-    )
-
-    args = parser.parse_args()
-
-    if args.list_partitions:
-        list_partitions()
-    else:
-        run_aggregate(force=args.force, partition=args.partition)
+    main()
